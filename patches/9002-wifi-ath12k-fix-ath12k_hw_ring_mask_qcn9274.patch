@@ -1,0 +1,13 @@
+diff --git a/drivers/net/wireless/ath/ath12k/hw.c b/drivers/net/wireless/ath/ath12k/hw.c
+index ea3eda1f1948..2b35c8aa6273 100644
+--- a/drivers/net/wireless/ath/ath12k/hw.c
++++ b/drivers/net/wireless/ath/ath12k/hw.c
+@@ -536,7 +536,7 @@ static const struct ath12k_hw_ring_mask ath12k_hw_ring_mask_qcn9274 = {
+ 		ATH12K_TX_RING_MASK_0,
+ 		ATH12K_TX_RING_MASK_1,
+ 		ATH12K_TX_RING_MASK_2,
+-		ATH12K_TX_RING_MASK_3,
++		ATH12K_TX_RING_MASK_4,
+ 	},
+ 	.rx_mon_dest = {
+ 		0, 0, 0,
