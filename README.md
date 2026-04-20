@@ -1,4 +1,4 @@
-# ath12k Backport for Kernel 5.15
+# ath12k backport for Kernel 5.15
 This repository provides patches and instructions to backport the Qualcomm ath12k wireless driver to Linux Kernel 5.15 using the backports-6.9.9 source.
 
 ## Support Hardware
