@@ -1,5 +1,5 @@
 # ath12k Backport for Kernel 6.1
-This repository provides patches and instructions to backport the Qualcomm ath12k wireless driver to Linux Kernel 5.15 using the backports-6.9.9 source.
+This repository provides patches and instructions to backport the Qualcomm ath12k wireless driver to Linux Kernel 6.1 using the backports-6.9.9 source.
 
 ## Support Hardware
 * Compex Wi-Fi 7000 series(QCN9274)
