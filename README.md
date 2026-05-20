@@ -1,24 +1,24 @@
-#ath12k Backport for Kernel 6.1
+# ath12k Backport for Kernel 6.1
 This repository provides patches and instructions to backport the Qualcomm ath12k wireless driver to Linux Kernel 5.15 using the backports-6.9.9 source.
 
-##Support Hardware
+## Support Hardware
 * Compex Wi-Fi 7000 series(QCN9274)
 * Tested on Ubuntu 22.04 with mainline Kernel 6.1
 
-##1. Prerequisites
+## 1. Prerequisites
 Ensure you have the necessary build tools and kernel headers installed:
 ```bash
 sudo apt update
 sudo apt install build-essential linux-headers-$(uname -r) wget
 ```
 
-##2. Download Backports Source
+## 2. Download Backports Source
 ```bash
 wget https://mirror2.openwrt.org/sources/backports-6.9.9.tar.xz
 tar -xvf backports-6.9.9.tar.xz
 ```
 
-##3. Apply Patches
+## 3. Apply Patches
 ```bash
 cd backports-6.9.9
 patch -p1 < patches/0002-build-add-ath12k-deconfig.patch
@@ -30,7 +30,7 @@ patch -p1 < patches/1-2-wifi-ath12k-fix-BSS-chan-info-request-WMI-command.patch
 patch -p1 < patches/2-2-wifi-ath12k-match-WMI-BSS-chan-info-structure-with-firmware-definition.patch
 ```
 
-##4. Build and Install
+## 4. Build and Install
 ```bash
 cd backports-6.9.9
 make defconfig-ath12k
@@ -39,7 +39,7 @@ sudo make INSTALL_MOD_STRIP=1 install
 reboot
 ```
 
-##5. Verification
+## 5. Verification
 ```bash
 modinfo ath12k
 ```
