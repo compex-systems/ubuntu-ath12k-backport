@@ -1,6 +1,6 @@
 # Qualcomm ath12k Backport Guide for Ubuntu
 
-This repository provides patches and instructions to compile and install the Qualcomm `ath12k` Wi-Fi 7 driver on Ubuntu using OpenWrt Linux `backports`.
+Many production and LTS systems stay on older Linux kernels for stability rather than performing a full kernel upgrade. Using OpenWrt `backports`, this repository provides compatibility patches and build instructions to bring newer upstream Qualcomm `ath12k` Wi-Fi 7 drivers and features onto those stable kernels.
 
 ## Supported Hardware
 
