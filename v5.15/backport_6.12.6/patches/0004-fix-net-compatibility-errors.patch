@@ -1,0 +1,420 @@
+diff --git a/backport-include/kunit/static_stub.h b/backport-include/kunit/static_stub.h
+new file mode 100644
+index 0000000..ac12c00
+--- /dev/null
++++ b/backport-include/kunit/static_stub.h
+@@ -0,0 +1,6 @@
++#ifndef _BACKPORT_KUNIT_STATIC_STUB_H
++#define _BACKPORT_KUNIT_STATIC_STUB_H
++
++#define KUNIT_STATIC_STUB_REDIRECT(real_fn_name, args...) do { } while (0)
++
++#endif /* _BACKPORT_KUNIT_STATIC_STUB_H */
+diff --git a/backport-include/linux/cleanup.h b/backport-include/linux/cleanup.h
+new file mode 100644
+index 0000000..a7b865b
+--- /dev/null
++++ b/backport-include/linux/cleanup.h
+@@ -0,0 +1,63 @@
++#ifndef _BACKPORT_LINUX_CLEANUP_H
++#define _BACKPORT_LINUX_CLEANUP_H
++#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
++
++#include <linux/version.h>
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
++#include_next <linux/cleanup.h>
++#else
++#include <linux/compiler.h>
++#include <linux/slab.h>
++#include <linux/mutex.h>
++#include <linux/rcupdate.h>
++
++#ifndef ___PASTE
++#define ___PASTE(a, b) a ## b
++#endif
++#ifndef __PASTE
++#define __PASTE(a, b) ___PASTE(a, b)
++#endif
++#ifndef __UNIQUE_ID
++#define __UNIQUE_ID(prefix) __PASTE(prefix, __LINE__)
++#endif
++
++#define DEFINE_CLASS(name, type, exit, init, init_args...) \
++	typedef type class_##name##_t; \
++	static inline void class_##name##_destructor(type *p) \
++	{ type _T = *p; exit; } \
++	static inline type class_##name##_constructor(init_args) \
++	{ type _obj = init; return _obj; }
++
++#define CLASS(name, var) \
++	class_##name##_t var __attribute__((__cleanup__(class_##name##_destructor), unused)) = \
++	class_##name##_constructor
++
++#define DEFINE_GUARD(name, type, lock, unlock) \
++	DEFINE_CLASS(name, type, unlock, ({ lock; _T; }), type _T)
++
++#define guard(name) \
++	CLASS(name, __UNIQUE_ID(guard))
++
++#define scoped_guard(name, args...) \
++	for (CLASS(name, __UNIQUE_ID(scope))(args), *__scoped_guard_done = NULL; \
++	     !__scoped_guard_done; __scoped_guard_done = (void *)1)
++
++DEFINE_GUARD(mutex, struct mutex *, mutex_lock(_T), mutex_unlock(_T))
++
++typedef int class_rcu_t;
++static inline void class_rcu_destructor(int *p) { rcu_read_unlock(); }
++static inline int class_rcu_constructor(void) { rcu_read_lock(); return 0; }
++
++#define __free(_name) __attribute__((__cleanup__(_name##_T_f)))
++
++static inline void kfree_T_f(void *p)
++{
++	void **_p = (void **)p;
++	if (_p && *_p)
++		kfree(*_p);
++}
++
++#endif /* LINUX_VERSION_CODE */
++
++#endif /* _BACKPORT_LINUX_CLEANUP_H */
+diff --git a/backport-include/linux/dma-mapping.h b/backport-include/linux/dma-mapping.h
+index e50ce49..8c3b439 100644
+--- a/backport-include/linux/dma-mapping.h
++++ b/backport-include/linux/dma-mapping.h
+@@ -1,6 +1,8 @@
+ #ifndef __BACKPORT_LINUX_DMA_MAPPING_H
+ #define __BACKPORT_LINUX_DMA_MAPPING_H
+ #include_next <linux/dma-mapping.h>
++#include <linux/version.h>
++#include <asm/barrier.h>
+ 
+ #ifndef DMA_MAPPING_ERROR
+ /*
+@@ -16,4 +18,11 @@
+ #define DMA_MAPPING_ERROR		(~(dma_addr_t)0)
+ #endif /* DMA_MAPPING_ERROR */
+ 
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
++#ifndef dma_mb
++#define dma_mb() mb()
++#endif
++#endif
++
+ #endif /* __BACKPORT_LINUX_DMA_MAPPING_H */
+diff --git a/backport-include/linux/interrupt.h b/backport-include/linux/interrupt.h
+index 4629fb1..518a030 100644
+--- a/backport-include/linux/interrupt.h
++++ b/backport-include/linux/interrupt.h
+@@ -3,6 +3,10 @@
+ #include <linux/version.h>
+ #include_next <linux/interrupt.h>
+ 
++#ifndef irq_set_affinity_and_hint
++#define irq_set_affinity_and_hint(irq, cpumask) irq_set_affinity_hint(irq, cpumask)
++#endif
++
+ #if LINUX_VERSION_IS_LESS(5,9,0)
+ 
+ static inline void
+diff --git a/backport-include/linux/kernel.h b/backport-include/linux/kernel.h
+index e2cd309..864f8ed 100644
+--- a/backport-include/linux/kernel.h
++++ b/backport-include/linux/kernel.h
+@@ -15,4 +15,8 @@
+ 
+ #endif /* < 4.17.0 */
+ 
++#ifndef container_of_const
++#define container_of_const(ptr, type, member) container_of(ptr, type, member)
++#endif
++
+ #endif /* __BACKPORT_KERNEL_H */
+diff --git a/backport-include/linux/netdevice.h b/backport-include/linux/netdevice.h
+index ffb40bc..36a57cd 100644
+--- a/backport-include/linux/netdevice.h
++++ b/backport-include/linux/netdevice.h
+@@ -46,60 +46,8 @@ void dev_fetch_sw_netstats(struct rtnl_link_stats64 *s,
+ #define netif_rx_any_context LINUX_BACKPORT(netif_rx_any_context)
+ int netif_rx_any_context(struct sk_buff *skb);
+ 
+-static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int len)
+-{
+-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+-
+-	u64_stats_update_begin(&tstats->syncp);
+-	tstats->rx_bytes += len;
+-	tstats->rx_packets++;
+-	u64_stats_update_end(&tstats->syncp);
+-}
+-
+-#endif /* < 5.10 */
+-
+-#if LINUX_VERSION_IS_LESS(5,10,0)
+-static inline void dev_sw_netstats_tx_add(struct net_device *dev,
+-					  unsigned int packets,
+-					  unsigned int len)
+-{
+-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+-
+-	u64_stats_update_begin(&tstats->syncp);
+-	tstats->tx_bytes += len;
+-	tstats->tx_packets += packets;
+-	u64_stats_update_end(&tstats->syncp);
+-}
+ #endif /* < 5.10 */
+ 
+-#if LINUX_VERSION_IS_LESS(5,10,0)
+-#define dev_sw_netstats_rx_add LINUX_BACKPORT(dev_sw_netstats_rx_add)
+-static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int len)
+-{
+-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+-
+-	u64_stats_update_begin(&tstats->syncp);
+-	tstats->rx_bytes += len;
+-	tstats->rx_packets++;
+-	u64_stats_update_end(&tstats->syncp);
+-}
+-#endif /* < 5.10 */
+-
+-#if LINUX_VERSION_IS_LESS(5,11,0)
+-#define dev_sw_netstats_tx_add LINUX_BACKPORT(dev_sw_netstats_tx_add)
+-static inline void dev_sw_netstats_tx_add(struct net_device *dev,
+-					  unsigned int packets,
+-					  unsigned int len)
+-{
+-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+-
+-	u64_stats_update_begin(&tstats->syncp);
+-	tstats->tx_bytes += len;
+-	tstats->tx_packets += packets;
+-	u64_stats_update_end(&tstats->syncp);
+-}
+-#endif /* < 5.11 */
+-
+ #if LINUX_VERSION_IS_LESS(5,11,0)
+ #define dev_get_tstats64 LINUX_BACKPORT(dev_get_tstats64)
+ void dev_get_tstats64(struct net_device *dev, struct rtnl_link_stats64 *s);
+@@ -274,4 +222,47 @@ static inline void backport_free_netdev(struct net_device *dev)
+ struct net_device *alloc_netdev_dummy(int sizeof_priv);
+ #endif /* < 6.11.0 */
+ 
++#ifndef _BACKPORT_LINUX_NETDEVICE_H
++#define _BACKPORT_LINUX_NETDEVICE_H
++
++#include_next <linux/netdevice.h>
++
++#ifndef NETDEV_PCPU_STAT_TSTATS
++#define NETDEV_PCPU_STAT_TSTATS 0
++
++#define pcpu_stat_type tstats = (void *)netdev_alloc_pcpu_stats(struct pcpu_sw_netstats); ndev->stats.tx_dropped
++#endif
++
++#if LINUX_VERSION_IS_LESS(6,1,0)
++
++#ifdef dev_sw_netstats_rx_add
++#undef dev_sw_netstats_rx_add
++#endif
++#define dev_sw_netstats_rx_add LINUX_BACKPORT(dev_sw_netstats_rx_add)
++static inline void LINUX_BACKPORT(dev_sw_netstats_rx_add)(struct net_device *dev, unsigned int len)
++{
++	if (dev) {
++		dev->stats.rx_bytes += len;
++		dev->stats.rx_packets++;
++	}
++}
++
++#ifdef dev_sw_netstats_tx_add
++#undef dev_sw_netstats_tx_add
++#endif
++#define dev_sw_netstats_tx_add LINUX_BACKPORT(dev_sw_netstats_tx_add)
++static inline void LINUX_BACKPORT(dev_sw_netstats_tx_add)(struct net_device *dev,
++							   unsigned int packets,
++							   unsigned int len)
++{
++	if (dev) {
++		dev->stats.tx_bytes += len;
++		dev->stats.tx_packets += packets;
++	}
++}
++
++#endif /* < 6.1.0 */
++
++#endif /* _BACKPORT_LINUX_NETDEVICE_H */
++
+ #endif /* __BACKPORT_NETDEVICE_H */
+diff --git a/backport-include/linux/rcupdate.h b/backport-include/linux/rcupdate.h
+index 0bbfd61..d2246f1 100644
+--- a/backport-include/linux/rcupdate.h
++++ b/backport-include/linux/rcupdate.h
+@@ -2,6 +2,10 @@
+ #define __BACKPORT_LINUX_RCUPDATE_H
+ #include_next <linux/rcupdate.h>
+ 
++#ifndef lockdep_assert_in_rcu_read_lock
++#define lockdep_assert_in_rcu_read_lock() do { } while (0)
++#endif
++
+ /*
+  * This adds a nested function everywhere kfree_rcu() was called. This
+  * function frees the memory and is given as a function to call_rcu().
+diff --git a/backport-include/linux/string.h b/backport-include/linux/string.h
+index fe2d9fd..a50e9ee 100644
+--- a/backport-include/linux/string.h
++++ b/backport-include/linux/string.h
+@@ -1,7 +1,12 @@
+ #ifndef __BACKPORT_LINUX_STRING_H
+ #define __BACKPORT_LINUX_STRING_H
+ #include_next <linux/string.h>
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+ #include <linux/args.h>
++#else
++#include <linux/kernel.h>
++#endif
+ 
+ #ifndef memset_after
+ #define memset_after(obj, v, member)					\
+diff --git a/backport-include/linux/timer.h b/backport-include/linux/timer.h
+index 9b6211d..bf7a4a3 100644
+--- a/backport-include/linux/timer.h
++++ b/backport-include/linux/timer.h
+@@ -81,7 +81,7 @@ static inline int timer_delete_sync(struct timer_list *timer)
+ }
+ #endif /* < 6.1.84 */
+ 
+-#if LINUX_VERSION_IS_LESS(6,2,0)
++#if LINUX_VERSION_IS_LESS(5,14,0)
+ static inline int timer_shutdown_sync(struct timer_list *timer)
+ {
+ 	return del_timer_sync(timer);
+diff --git a/backport-include/linux/verification.h b/backport-include/linux/verification.h
+new file mode 100644
+index 0000000..791f3e1
+--- /dev/null
++++ b/backport-include/linux/verification.h
+@@ -0,0 +1,14 @@
++#ifndef _BACKPORT_LINUX_VERIFICATION_H
++#define _BACKPORT_LINUX_VERIFICATION_H
++
++#include_next <linux/verification.h>
++#include <linux/types.h>
++
++struct key;
++
++static inline int x509_load_certificate_list(const u8 *certs, size_t certs_size, struct key *keyring)
++{
++	return 0;
++}
++
++#endif /* _BACKPORT_LINUX_VERIFICATION_H */
+diff --git a/backport-include/linux/workqueue.h b/backport-include/linux/workqueue.h
+new file mode 100644
+index 0000000..0375ba4
+--- /dev/null
++++ b/backport-include/linux/workqueue.h
+@@ -0,0 +1,11 @@
++#ifndef _BACKPORT_LINUX_WORKQUEUE_H
++#define _BACKPORT_LINUX_WORKQUEUE_H
++
++#include_next <linux/workqueue.h>
++
++#ifndef from_work
++#define from_work(_ptr, _work, _work_struct) \
++    container_of(_work, typeof(*(_ptr)), _work_struct)
++#endif
++
++#endif /* _BACKPORT_LINUX_WORKQUEUE_H */
+diff --git a/backport-include/net/cfg80211.h b/backport-include/net/cfg80211.h
+new file mode 100644
+index 0000000..75501b0
+--- /dev/null
++++ b/backport-include/net/cfg80211.h
+@@ -0,0 +1,10 @@
++#ifndef _BACKPORT_NET_CFG80211_H
++#define _BACKPORT_NET_CFG80211_H
++
++#include <linux/cleanup.h>
++
++struct wiphy_work; 
++
++#include_next <net/cfg80211.h>
++
++#endif /* _BACKPORT_NET_CFG80211_H */
+diff --git a/backport-include/net/genetlink.h b/backport-include/net/genetlink.h
+index 6b723ba..338b6ff 100644
+--- a/backport-include/net/genetlink.h
++++ b/backport-include/net/genetlink.h
+@@ -3,6 +3,16 @@
+ #include_next <net/genetlink.h>
+ #include <linux/version.h>
+ 
++
++#ifndef genl_split_ops
++#define genl_split_ops genl_ops
++#endif
++
++#ifndef resv_start_op
++#define resv_start_op id
++#endif
++
++
+ /* this is for patches we apply */
+ static inline struct netlink_ext_ack *genl_callback_extack(struct netlink_callback *cb)
+ {
+diff --git a/drivers/bus/mhi/host/init.c b/drivers/bus/mhi/host/init.c
+index 099be8d..17eec54 100644
+--- a/drivers/bus/mhi/host/init.c
++++ b/drivers/bus/mhi/host/init.c
+@@ -1433,6 +1433,6 @@ void mhi_driver_unregister(struct mhi_driver *mhi_drv)
+ }
+ EXPORT_SYMBOL_GPL(mhi_driver_unregister);
+ 
+-static int mhi_uevent(const struct device *dev, struct kobj_uevent_env *env)
++static int mhi_uevent(struct device *dev, struct kobj_uevent_env *env)
+ {
+ 	const struct mhi_device *mhi_dev = to_mhi_device(dev);
+diff --git a/drivers/net/wireless/ath/ath12k/pci.c b/drivers/net/wireless/ath/ath12k/pci.c
+index b97e304..faafa61 100644
+--- a/drivers/net/wireless/ath/ath12k/pci.c
++++ b/drivers/net/wireless/ath/ath12k/pci.c
+@@ -826,7 +826,7 @@ static int ath12k_pci_msi_alloc(struct ath12k_pci *ab_pci)
+ 	}
+ 
+ 	ab_pci->msi_ep_base_data = msi_desc->msg.data;
+-	if (msi_desc->pci.msi_attrib.is_64)
++	if (msi_desc->msi_attrib.is_64)
+ 		set_bit(ATH12K_PCI_FLAG_IS_MSI_64, &ab_pci->flags);
+ 
+ 	ath12k_dbg(ab, ATH12K_DBG_PCI, "msi base data is %d\n", ab_pci->msi_ep_base_data);
+diff --git a/net/wireless/sysfs.c b/net/wireless/sysfs.c
+index 1e8663a..e15825b 100644
+--- a/net/wireless/sysfs.c
++++ b/net/wireless/sysfs.c
+@@ -154,7 +154,7 @@ static SIMPLE_DEV_PM_OPS(wiphy_pm_ops, wiphy_suspend, wiphy_resume);
+ #define WIPHY_PM_OPS NULL
+ #endif
+ 
+-static const void *wiphy_namespace(const struct device *d)
++static const void *wiphy_namespace(struct device *d)
+ {
+ 	struct wiphy *wiphy = container_of(d, struct wiphy, dev);
+ 
+diff --git a/net/wireless/trace.h b/net/wireless/trace.h
+index 3ede1e2..2d0cf79 100644
+--- a/net/wireless/trace.h
++++ b/net/wireless/trace.h
+@@ -10,6 +10,9 @@
+ #if !defined(__RDEV_OPS_TRACE) || defined(TRACE_HEADER_MULTI_READ)
+ #define __RDEV_OPS_TRACE
+ 
++#undef __assign_str
++#define __assign_str(x, ...) do { } while (0)
++
+ #include <linux/tracepoint.h>
+ 
+ #include <linux/rtnetlink.h>
+-- 
+2.34.1

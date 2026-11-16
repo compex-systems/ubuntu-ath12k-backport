@@ -1,0 +1,53 @@
+--- a/drivers/net/wireless/ath/ath12k/mhi.c
++++ b/drivers/net/wireless/ath/ath12k/mhi.c
+@@ -16,6 +16,11 @@
+ #define MHI_TIMEOUT_DEFAULT_MS	90000
+ #define OTP_INVALID_BOARD_ID	0xFFFF
+ #define OTP_VALID_DUALMAC_BOARD_ID_MASK		0x1000
++
++bool ath12k_dualmac_fw = 1;
++module_param_named(dualmac_fw, ath12k_dualmac_fw, bool, 0644);
++MODULE_PARM_DESC(dualmac_fw,
++		 "Use firmware amss_dualmac.bin. (Default: true)");
+ 
+ static const struct mhi_channel_config ath12k_mhi_channels_qcn9274[] = {
+ 	{
+@@ -391,6 +394,12 @@
+ 			ath12k_dbg(ab, ATH12K_DBG_BOOT,
+ 				   "dualmac fw selected for board id: %x\n", board_id);
+ 		}
++	}
++
++	if (ath12k_dualmac_fw) {
++		dualmac = true;
++		ab->slo_capable = false;
++		ath12k_dbg(ab, ATH12K_DBG_BOOT, "dualmac fw selected \n");	
+ 	}
+ 
+ 	if (dualmac) {
+@@ -399,9 +399,11 @@
+ 			mhi_ctrl->fw_data = ab->fw.amss_dualmac_data;
+ 			mhi_ctrl->fw_sz = ab->fw.amss_dualmac_len;
+ 		} else {
+-			ath12k_warn(ab, "dualmac firmware IE not present in firmware-N.bin\n");
+-			ret = -ENOENT;
+-			goto free_controller;
++			/* use the old amss_dualmac firmware file */
++			ath12k_core_create_firmware_path(ab, ATH12K_AMSS_DUALMAC_FILE,
++							 ab_pci->amss_path,
++							 sizeof(ab_pci->amss_path));
++			mhi_ctrl->fw_image = ab_pci->amss_path;
+ 		}
+ 	} else {
+ 		if (ab->fw.amss_data && ab->fw.amss_len > 0) {
+--- a/drivers/net/wireless/ath/ath12k/hw.h
++++ b/drivers/net/wireless/ath/ath12k/hw.h
+@@ -94,6 +94,7 @@
+ #define ATH12K_AMSS_FILE		"amss.bin"
+ #define ATH12K_M3_FILE			"m3.bin"
+ #define ATH12K_REGDB_FILE_NAME		"regdb.bin"
++#define ATH12K_AMSS_DUALMAC_FILE	"amss_dualmac.bin"
+ 
+ enum ath12k_hw_rate_cck {
+ 	ATH12K_HW_RATE_CCK_LP_11M = 0,
+

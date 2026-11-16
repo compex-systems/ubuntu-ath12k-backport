@@ -1,0 +1,291 @@
+From a22cfa49a123925f1c24c3585e720cfc7ecf564f Mon Sep 17 00:00:00 2001
+From: kwan1996 <laicheehou9@gmail.com>
+Date: Thu, 25 Sep 2025 15:20:20 +0800
+Subject: [PATCH 2/2] Fix compile error
+
+---
+ backport-include/linux/acpi_amd_wbrf.h |  6 +++---
+ drivers/bus/mhi/host/init.c            |  8 ++++++++
+ drivers/bus/mhi/host/trace.h           | 24 ++++++++++++++++++++++++
+ include/trace/events/qrtr.h            |  4 ++++
+ kconf/lxdialog/check-lxdialog.sh       |  0
+ net/mac80211/trace.h                   |  7 +++++++
+ net/wireless/core.c                    | 20 ++++++++++++++++++++
+ net/wireless/nl80211.c                 | 18 ++++++++++++++----
+ net/wireless/trace.h                   |  4 ++++
+
+diff --git a/backport-include/linux/acpi_amd_wbrf.h b/backport-include/linux/acpi_amd_wbrf.h
+index d3a646a..6176f18 100644
+--- a/backport-include/linux/acpi_amd_wbrf.h
++++ b/backport-include/linux/acpi_amd_wbrf.h
+@@ -4,8 +4,8 @@
+  * Copyright (C) 2023 Advanced Micro Devices
+  */
+ 
+-#ifndef _ACPI_AMD_WBRF_H
+-#define _ACPI_AMD_WBRF_H
++#ifndef __BACKPORT_ACPI_AMD_WBRF_H
++#define __BACKPORT_ACPI_AMD_WBRF_H
+ 
+ #if LINUX_VERSION_IS_GEQ(6,8,0)
+ #include_next <linux/acpi_amd_wbrf.h>
+@@ -83,4 +83,4 @@ int amd_wbrf_unregister_notifier(struct notifier_block *nb)
+ }
+ 
+ #endif /* >=6,8,0 */
+-#endif /* _ACPI_AMD_WBRF_H */
++#endif /* __BACKPORT_ACPI_AMD_WBRF_H */
+diff --git a/drivers/bus/mhi/host/init.c b/drivers/bus/mhi/host/init.c
+index a9b1f8b..c43e572 100644
+--- a/drivers/bus/mhi/host/init.c
++++ b/drivers/bus/mhi/host/init.c
+@@ -1442,10 +1442,18 @@ static int mhi_uevent(const struct device *dev, struct kobj_uevent_env *env)
+ 					mhi_dev->name);
+ }
+ 
++#if LINUX_VERSION_IS_GEQ(6,11,0)
+ static int mhi_match(struct device *dev, const struct device_driver *drv)
++#else
++static int mhi_match(struct device *dev, struct device_driver *drv)
++#endif
+ {
+ 	struct mhi_device *mhi_dev = to_mhi_device(dev);
++#if LINUX_VERSION_IS_GEQ(6,11,0)
+ 	const struct mhi_driver *mhi_drv = to_mhi_driver(drv);
++#else
++	struct mhi_driver *mhi_drv = to_mhi_driver(drv);
++#endif
+ 	const struct mhi_device_id *id;
+ 
+ 	/*
+diff --git a/drivers/bus/mhi/host/trace.h b/drivers/bus/mhi/host/trace.h
+index 3e0c417..059ed3c 100644
+--- a/drivers/bus/mhi/host/trace.h
++++ b/drivers/bus/mhi/host/trace.h
+@@ -104,7 +104,11 @@ TRACE_EVENT(mhi_gen_tre,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		__entry->ch_num = mhi_chan->chan;
+ 		__entry->wp = mhi_tre;
+ 		__entry->tre_ptr = le64_to_cpu(mhi_tre->ptr);
+@@ -132,7 +136,11 @@ TRACE_EVENT(mhi_intvec_states,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		__entry->local_ee = mhi_cntrl->ee;
+ 		__entry->state = mhi_cntrl->dev_state;
+ 		__entry->dev_ee = dev_ee;
+@@ -159,7 +167,11 @@ TRACE_EVENT(mhi_tryset_pm_state,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		if (pm_state)
+ 			pm_state = __fls(pm_state);
+ 		__entry->pm_state = pm_state;
+@@ -185,7 +197,11 @@ DECLARE_EVENT_CLASS(mhi_process_event_ring,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		__entry->rp = rp;
+ 		__entry->ptr = le64_to_cpu(rp->ptr);
+ 		__entry->dword0 = le32_to_cpu(rp->dword[0]);
+@@ -227,7 +243,11 @@ DECLARE_EVENT_CLASS(mhi_update_channel_state,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		__entry->ch_num = mhi_chan->chan;
+ 		__entry->state = state;
+ 		__entry->reason = reason;
+@@ -266,7 +286,11 @@ TRACE_EVENT(mhi_pm_st_transition,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(name);
++#else
++		__assign_str(name, mhi_cntrl->mhi_dev->name);
++#endif
+ 		__entry->state = state;
+ 	),
+ 
+diff --git a/include/trace/events/qrtr.h b/include/trace/events/qrtr.h
+index 14f8229..d5e9022 100644
+--- a/include/trace/events/qrtr.h
++++ b/include/trace/events/qrtr.h
+@@ -102,7 +102,11 @@ TRACE_EVENT(qrtr_ns_message,
+ 	),
+ 
+ 	TP_fast_assign(
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(ctrl_pkt_str);
++#else
++		__assign_str(ctrl_pkt_str, ctrl_pkt_str);
++#endif
+ 		__entry->sq_node = sq_node;
+ 		__entry->sq_port = sq_port;
+ 	),
+diff --git a/kconf/lxdialog/check-lxdialog.sh b/kconf/lxdialog/check-lxdialog.sh
+old mode 100755
+new mode 100644
+diff --git a/net/mac80211/trace.h b/net/mac80211/trace.h
+index dc498cd..11ebf3a 100644
+--- a/net/mac80211/trace.h
++++ b/net/mac80211/trace.h
+@@ -31,9 +31,16 @@
+ #define VIF_ENTRY	__field(enum nl80211_iftype, vif_type) __field(void *, sdata)	\
+ 			__field(bool, p2p)						\
+ 			__string(vif_name, sdata->name)
++
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ #define VIF_ASSIGN	__entry->vif_type = sdata->vif.type; __entry->sdata = sdata;	\
+ 			__entry->p2p = sdata->vif.p2p;					\
+ 			__assign_str(vif_name)
++#else
++#define VIF_ASSIGN	__entry->vif_type = sdata->vif.type; __entry->sdata = sdata;	\
++			__entry->p2p = sdata->vif.p2p;					\
++			__assign_str(vif_name, sdata->name)
++#endif
+ #define VIF_PR_FMT	" vif:%s(%d%s)"
+ #define VIF_PR_ARG	__get_str(vif_name), __entry->vif_type, __entry->p2p ? "/p2p" : ""
+ 
+diff --git a/net/wireless/core.c b/net/wireless/core.c
+index 5f9ac3a..5055c68 100644
+--- a/net/wireless/core.c
++++ b/net/wireless/core.c
+@@ -165,11 +165,19 @@ int cfg80211_switch_netns(struct cfg80211_registered_device *rdev,
+ 	list_for_each_entry(wdev, &rdev->wiphy.wdev_list, list) {
+ 		if (!wdev->netdev)
+ 			continue;
++#if LINUX_VERSION_IS_LESS(6,12,0)
++		wdev->netdev->features &= ~NETIF_F_NETNS_LOCAL;
++#else
+ 		wdev->netdev->netns_local = false;
++#endif
+ 		err = dev_change_net_namespace(wdev->netdev, net, "wlan%d");
+ 		if (err)
+ 			break;
++#if LINUX_VERSION_IS_LESS(6,12,0)
++		wdev->netdev->features |= NETIF_F_NETNS_LOCAL;
++#else
+ 		wdev->netdev->netns_local = true;
++#endif
+ 	}
+ 
+ 	if (err) {
+@@ -181,11 +189,19 @@ int cfg80211_switch_netns(struct cfg80211_registered_device *rdev,
+ 						     list) {
+ 			if (!wdev->netdev)
+ 				continue;
++#if LINUX_VERSION_IS_LESS(6,12,0)
++		wdev->netdev->features &= ~NETIF_F_NETNS_LOCAL;
++#else
+ 			wdev->netdev->netns_local = false;
++#endif
+ 			err = dev_change_net_namespace(wdev->netdev, net,
+ 							"wlan%d");
+ 			WARN_ON(err);
++#if LINUX_VERSION_IS_LESS(6,12,0)
++		wdev->netdev->features |= NETIF_F_NETNS_LOCAL;
++#else
+ 			wdev->netdev->netns_local = true;
++#endif
+ 		}
+ 
+ 		return err;
+@@ -1518,7 +1534,11 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
+ 		SET_NETDEV_DEVTYPE(dev, &wiphy_type);
+ 		wdev->netdev = dev;
+ 		/* can only change netns with wiphy */
++#if LINUX_VERSION_IS_LESS(6,12,0)
++		dev->features |= NETIF_F_NETNS_LOCAL;
++#else
+ 		dev->netns_local = true;
++#endif
+ 
+ 		cfg80211_init_wdev(wdev);
+ 		break;
+diff --git a/net/wireless/nl80211.c b/net/wireless/nl80211.c
+index 5fde13e..f6f17d4 100644
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -17988,10 +17988,15 @@ void nl80211_common_reg_change_event(enum nl80211_commands cmd_id,
+ 		goto nla_put_failure;
+ 
+ 	genlmsg_end(msg, hdr);
+-
++#if LINUX_VERSION_IS_LESS(6,8,0)
++	rcu_read_lock();
++	genlmsg_multicast_allns(&nl80211_fam, msg, 0,
++				NL80211_MCGRP_REGULATORY, GFP_ATOMIC);
++	rcu_read_unlock();
++#else
+ 	genlmsg_multicast_allns(&nl80211_fam, msg, 0,
+ 				NL80211_MCGRP_REGULATORY);
+-
++#endif
+ 	return;
+ 
+ nla_put_failure:
+@@ -18722,10 +18727,15 @@ void nl80211_send_beacon_hint_event(struct wiphy *wiphy,
+ 	nla_nest_end(msg, nl_freq);
+ 
+ 	genlmsg_end(msg, hdr);
+-
++#if LINUX_VERSION_IS_LESS(6,8,0)
++	rcu_read_lock();
++	genlmsg_multicast_allns(&nl80211_fam, msg, 0,
++				NL80211_MCGRP_REGULATORY, GFP_ATOMIC);
++	rcu_read_unlock();
++#else
+ 	genlmsg_multicast_allns(&nl80211_fam, msg, 0,
+ 				NL80211_MCGRP_REGULATORY);
+-
++#endif
+ 	return;
+ 
+ nla_put_failure:
+diff --git a/net/wireless/trace.h b/net/wireless/trace.h
+index 74e9911..055e483 100644
+--- a/net/wireless/trace.h
++++ b/net/wireless/trace.h
+@@ -446,7 +446,11 @@ TRACE_EVENT(rdev_add_virtual_intf,
+ 	),
+ 	TP_fast_assign(
+ 		WIPHY_ASSIGN;
++#if LINUX_VERSION_IS_GEQ(6,10,0)
+ 		__assign_str(vir_intf_name);
++#else
++		__assign_str(vir_intf_name, name ? name : "<noname>");
++#endif
+ 		__entry->type = type;
+ 	),
+ 	TP_printk(WIPHY_PR_FMT ", virtual intf name: %s, type: %d",
+-- 
+2.34.1
+

@@ -1,0 +1,39 @@
+From 95399b2d4528ac7b33da2057dac5d56a77ad845f Mon Sep 17 00:00:00 2001
+From: Kwan Lai Chee Hou <laicheehou9@gmail.com>
+Date: Wed, 23 Sep 2026 11:41:29 +0800
+Subject: [PATCH 3/3] fix mhi issues
+
+---
+ drivers/bus/mhi/host/init.c     | 2 +-
+ drivers/bus/mhi/host/internal.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/bus/mhi/host/init.c b/drivers/bus/mhi/host/init.c
+index 17eec54..eaaf26c 100644
+--- a/drivers/bus/mhi/host/init.c
++++ b/drivers/bus/mhi/host/init.c
+@@ -1463,7 +1463,7 @@ static int mhi_match(struct device *dev, struct device_driver *drv)
+ 	return 0;
+ };
+ 
+-const struct bus_type mhi_bus_type = {
++struct bus_type mhi_bus_type = {
+ 	.name = "mhi",
+ 	.dev_name = "mhi",
+ 	.match = mhi_match,
+diff --git a/drivers/bus/mhi/host/internal.h b/drivers/bus/mhi/host/internal.h
+index 80381c8..6962b23 100644
+--- a/drivers/bus/mhi/host/internal.h
++++ b/drivers/bus/mhi/host/internal.h
+@@ -9,7 +9,7 @@
+ 
+ #include "../common.h"
+ 
+-extern const struct bus_type mhi_bus_type;
++extern struct bus_type mhi_bus_type;
+ 
+ /* Host request register */
+ #define MHI_SOC_RESET_REQ_OFFSET			0xb0
+-- 
+2.34.1
+
